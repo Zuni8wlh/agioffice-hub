@@ -27,17 +27,22 @@ module.exports = (req, res) => {
   const body = req.body || {};
   const username = body.username || '';
   const password = body.password || '';
+  const returnUrl = body.return || '';
 
   const ok = username && password && safeEqual(username, user) && safeEqual(password, pass);
 
   if(!ok){
-    res.setHeader('Location', '/?error=1');
+    const errUrl = returnUrl ? `/?error=1&return=${encodeURIComponent(returnUrl)}` : '/?error=1';
+    res.setHeader('Location', errUrl);
     res.status(302).send('');
     return;
   }
 
   const token = makeSession(secret);
-  res.setHeader('Set-Cookie', `agi_session=${token}; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax`);
-  res.setHeader('Location', '/');
+  // Domain (no leading dot needed) makes this cookie readable by all *.agioffice.online subdomains too.
+  res.setHeader('Set-Cookie', `agi_session=${token}; Path=/; Domain=agioffice.online; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax`);
+
+  const dest = (returnUrl && /^https:\/\/[a-z0-9-]+\.agioffice\.online\/?/i.test(returnUrl)) ? returnUrl : '/';
+  res.setHeader('Location', dest);
   res.status(302).send('');
 };
