@@ -61,7 +61,8 @@ const HUB_HTML = `<!DOCTYPE html>
 </html>
 `;
 
-function loginHtml(showError){
+function loginHtml(showError, returnUrl){
+  const safeReturn = (returnUrl || '').replace(/"/g, '&quot;');
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -99,6 +100,7 @@ function loginHtml(showError){
     <p class="sub">Log in to continue</p>
     ${showError ? '<div class="error">Wrong username or password. Try again.</div>' : ''}
     <form method="POST" action="/api/login">
+      <input type="hidden" name="return" value="${safeReturn}">
       <label for="username">Username</label>
       <input type="text" id="username" name="username" autocomplete="username" autofocus>
       <label for="password">Password</label>
@@ -153,18 +155,25 @@ module.exports = (req, res) => {
   const cookies = parseCookies(req.headers.cookie);
   const authed = verifySession(cookies.agi_session, secret);
 
+  let showError = false;
+  let returnUrl = '';
+  try{
+    const url = new URL(req.url, 'http://placeholder');
+    showError = url.searchParams.get('error') === '1';
+    returnUrl = url.searchParams.get('return') || '';
+  }catch(e){}
+
   if(authed){
+    if(returnUrl && /^https:\/\/[a-z0-9-]+\.agioffice\.online\/?/i.test(returnUrl)){
+      res.setHeader('Location', returnUrl);
+      res.status(302).send('');
+      return;
+    }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.status(200).send(HUB_HTML);
     return;
   }
 
-  let showError = false;
-  try{
-    const url = new URL(req.url, 'http://placeholder');
-    showError = url.searchParams.get('error') === '1';
-  }catch(e){}
-
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.status(200).send(loginHtml(showError));
+  res.status(200).send(loginHtml(showError, returnUrl));
 };
